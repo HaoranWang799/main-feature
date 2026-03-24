@@ -806,6 +806,15 @@
       return persist;
     }
 
+    function base64ToArrayBuffer(base64) {
+      const binary = window.atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes.buffer;
+    }
+
     const STORAGE_KEY = "ROMANCE_LLM_SYSTEM_PROMPT";
     el.systemPrompt.value = localStorage.getItem(STORAGE_KEY) || "";
     el.promptStatus.textContent = el.systemPrompt.value.trim() ? "已加载已保存的提示词。" : "提示词尚未保存。";
@@ -1272,12 +1281,15 @@
         throw new Error(`Fish Audio TTS 接口错误: ${parseApiError(data, `HTTP ${res.status}`)}（model=${fishModel}）`);
       }
 
-      const fallbackMode = res.headers.get("X-Fish-Fallback");
-      if (fallbackMode === "default-voice") {
+      const data = await res.json().catch(() => null);
+      if (!data?.ok || !data?.audio_base64) {
+        throw new Error(`Fish Audio TTS 接口错误: ${parseApiError(data, "未返回音频数据")}（model=${fishModel}）`);
+      }
+      if (data.used_default_voice) {
         fishReferenceIdEl.value = "";
         localStorage.removeItem("FISH_REFERENCE_ID");
       }
-      return res.arrayBuffer();
+      return base64ToArrayBuffer(data.audio_base64);
     }
 
     async function synthesizeVoiceSexyVoice(text) {

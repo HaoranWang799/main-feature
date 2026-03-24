@@ -5,6 +5,7 @@
 """
 
 import http.server
+import base64
 import json
 import os
 import re
@@ -282,10 +283,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     result = fallback
 
             if result["ok"]:
-                extra_headers = {}
-                if result["used_default_voice"]:
-                    extra_headers["X-Fish-Fallback"] = "default-voice"
-                self._send_bytes(200, result["content_type"], result["body"], extra_headers)
+                self._send_json(200, {
+                    "ok": True,
+                    "audio_base64": base64.b64encode(result["body"]).decode("ascii"),
+                    "content_type": result["content_type"],
+                    "used_default_voice": result["used_default_voice"],
+                })
                 return
 
             preview = result["body"].decode("utf-8", errors="ignore")[:300]
