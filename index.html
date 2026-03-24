@@ -501,9 +501,11 @@
     <p class="small">说明：请用 <code>python server.py</code> 启动本地服务器（包含 API 代理）。</p>
   </main>
 
+  <script src="/config.js"></script>
   <script>
-    const XAI_API_KEY = "YOUR_XAI_API_KEY";
-    const XAI_TTS_API_KEY = "YOUR_XAI_TTS_API_KEY";
+    const APP_CONFIG = window.APP_CONFIG || {};
+    const XAI_API_KEY = APP_CONFIG.XAI_API_KEY || "YOUR_XAI_API_KEY";
+    const XAI_TTS_API_KEY = APP_CONFIG.XAI_TTS_API_KEY || "YOUR_XAI_TTS_API_KEY";
 
     const LLM_API_URL = "https://api.x.ai/v1/chat/completions";
     const LLM_MODEL = "grok-4-1-fast-non-reasoning";

@@ -10,7 +10,7 @@ import os
 import urllib.request
 import urllib.error
 
-PORT = 8080
+PORT = int(os.environ.get("PORT", "8080"))
 PROXY_ROUTES = {
     "/proxy/sexyvoice/": "https://sexyvoice.ai/api/v1/",
     "/proxy/fish/": "https://api.fish.audio/v1/",
@@ -33,6 +33,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        if self.path == "/config.js":
+            self._serve_config_js()
+            return
         # 音频下载代理: /proxy/audio?url=...
         if self.path.startswith("/proxy/audio?"):
             self._proxy_audio()
@@ -116,6 +119,20 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept, model")
 
+    def _serve_config_js(self):
+        config = {
+            "XAI_API_KEY": os.environ.get("XAI_API_KEY", "YOUR_XAI_API_KEY"),
+            "XAI_TTS_API_KEY": os.environ.get("XAI_TTS_API_KEY", "YOUR_XAI_TTS_API_KEY"),
+        }
+        payload = f"window.APP_CONFIG = {json.dumps(config, ensure_ascii=False)};"
+        body = payload.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/javascript; charset=utf-8")
+        self._cors_headers()
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def _proxy_audio(self):
         """Download audio from a remote URL and relay it back (bypass CORS)."""
         from urllib.parse import urlparse, parse_qs
@@ -152,7 +169,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    with http.server.HTTPServer(("", PORT), ProxyHandler) as httpd:
+    with http.server.ThreadingHTTPServer(("", PORT), ProxyHandler) as httpd:
         print(f"服务器已启动: http://localhost:{PORT}")
         print(f"Preview URL: http://localhost:{PORT}")
         print(f"代理路由:")
