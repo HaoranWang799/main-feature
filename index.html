@@ -1281,7 +1281,15 @@
         throw new Error(`Fish Audio TTS 接口错误: ${parseApiError(data, `HTTP ${res.status}`)}（model=${fishModel}）`);
       }
 
-      const data = await res.json().catch(() => null);
+      const contentType = (res.headers.get("Content-Type") || "").toLowerCase();
+      if (contentType.startsWith("audio/") || contentType === "application/octet-stream") {
+        return res.arrayBuffer();
+      }
+
+      const responseText = await res.text().catch(() => "");
+      let data = null;
+      try { data = responseText ? JSON.parse(responseText) : null; } catch { data = responseText; }
+
       if (!data?.ok || !data?.audio_base64) {
         throw new Error(`Fish Audio TTS 接口错误: ${parseApiError(data, "未返回音频数据")}（model=${fishModel}）`);
       }
