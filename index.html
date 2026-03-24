@@ -374,6 +374,16 @@
       padding: 12px 10px;
       font-size: 0.93rem;
     }
+    .api-test-button {
+      background: #f4d35e;
+      color: #6b5200;
+      border: 1px solid #e1bf3f;
+      box-shadow: 0 8px 18px rgba(225, 191, 63, 0.18);
+    }
+    .api-test-button:hover {
+      background: #efc93b;
+      color: #5d4700;
+    }
     .api-result {
       margin-top: 10px;
       padding: 12px;
@@ -564,10 +574,10 @@
         <p>用于快速确认 Railway 上各个接口是否正常可用，便于定位是前端、后端还是密钥的问题。</p>
         <textarea id="apiTestText" placeholder="测试文本，例如：Hello, this is a connectivity test.">Hello, this is a connectivity test.</textarea>
         <div class="api-grid">
-          <button id="testLlmBtn" type="button">测试 xAI LLM</button>
-          <button id="testXaiTtsBtn" type="button">测试 xAI TTS</button>
-          <button id="testFishBtn" type="button">测试 Fish Audio</button>
-          <button id="testSexyVoiceBtn" type="button">测试 SexyVoice</button>
+          <button id="testLlmBtn" class="api-test-button" type="button">测试 xAI LLM</button>
+          <button id="testXaiTtsBtn" class="api-test-button" type="button">测试 xAI TTS</button>
+          <button id="testFishBtn" class="api-test-button" type="button">测试 Fish Audio</button>
+          <button id="testSexyVoiceBtn" class="api-test-button" type="button">测试 SexyVoice</button>
         </div>
         <div id="apiTestResult" class="api-result">点击任意按钮开始测试。</div>
       </div>
