@@ -198,6 +198,15 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             raise ValueError(f"Missing {field_name}")
         return token
 
+    def _normalize_fish_error(self, raw_error):
+        text = (raw_error or "").strip()
+        if "Invalid Token" in text:
+            return (
+                "Fish API Key 无效。请到 https://fish.audio/app/api-keys 重新创建一把新的 API Key，"
+                "不要使用登录密码，也不要带 Bearer 前缀。"
+            )
+        return text or "Fish Audio request failed"
+
     def _perform_fish_tts(self, request_data, include_reference_id=True):
         api_key = self._sanitize_api_token(
             request_data.get("apiKey") or request_data.get("api_key") or "",
@@ -272,6 +281,16 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(result["body"])
                 return
 
+            preview = result["body"].decode("utf-8", errors="ignore")[:300]
+            normalized_error = self._normalize_fish_error(preview)
+            if normalized_error != (preview or "").strip():
+                self._send_json(result["status"], {
+                    "ok": False,
+                    "error": normalized_error,
+                    "used_default_voice": result["used_default_voice"],
+                })
+                return
+
             self.send_response(result["status"])
             self.send_header("Content-Type", result["content_type"])
             self._cors_headers()
@@ -301,11 +320,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 })
                 return
 
-            preview = result["body"].decode("utf-8", errors="ignore")[:300]
+            preview = self._normalize_fish_error(result["body"].decode("utf-8", errors="ignore")[:300])
             self._send_json(result["status"], {
                 "ok": False,
                 "status": result["status"],
-                "error": preview or "Fish Audio request failed",
+                "error": preview,
                 "used_default_voice": result["used_default_voice"],
             })
         except ValueError as e:
