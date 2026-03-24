@@ -826,6 +826,18 @@
     bindSanitizedTokenInput(fishApiKeyEl, "FISH_API_KEY", el.testFishApiKey);
     bindSanitizedTokenInput(svApiKeyEl, "SV_API_KEY", el.testSvApiKey);
 
+    function getConfiguredXaiApiKey() {
+      const envKey = sanitizeApiToken(XAI_API_KEY);
+      if (envKey && envKey !== "YOUR_XAI_API_KEY") return envKey;
+      return sanitizeApiToken(el.testXaiApiKey.value || localStorage.getItem(TEST_XAI_API_KEY) || "");
+    }
+
+    function getConfiguredXaiTtsApiKey() {
+      const envKey = sanitizeApiToken(XAI_TTS_API_KEY);
+      if (envKey && envKey !== "YOUR_XAI_TTS_API_KEY") return envKey;
+      return sanitizeApiToken(el.testXaiTtsApiKey.value || localStorage.getItem(TEST_XAI_TTS_API_KEY) || "");
+    }
+
     function parseApiError(data, fallback = "未知 API 错误") {
       if (!data) return fallback;
       if (typeof data === "string") return data;
@@ -1014,9 +1026,13 @@
     });
 
     async function generateScript(input, targetSeconds = 0, _retried = false) {
+      const configuredXaiApiKey = getConfiguredXaiApiKey();
       const manualPrompt = getManualPrompt();
       if (!manualPrompt) {
         throw new Error("未配置人工提示词，请先到配置页手动填写并保存。");
+      }
+      if (!configuredXaiApiKey) {
+        throw new Error("未配置 xAI API Key。");
       }
 
       let userMessage = input;
@@ -1039,7 +1055,7 @@
       const res = await fetch(LLM_API_URL, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${XAI_API_KEY}`,
+          "Authorization": `Bearer ${configuredXaiApiKey}`,
           "Content-Type": "application/json"
         },
         body: JSON.stringify(body)
@@ -1087,7 +1103,7 @@
           };
           const expandRes = await fetch(LLM_API_URL, {
             method: "POST",
-            headers: { "Authorization": `Bearer ${XAI_API_KEY}`, "Content-Type": "application/json" },
+            headers: { "Authorization": `Bearer ${configuredXaiApiKey}`, "Content-Type": "application/json" },
             body: JSON.stringify(expandBody)
           });
           const expandData = await expandRes.json().catch(() => null);
@@ -1195,7 +1211,7 @@
       return synthesizeVoiceXAI(text);
     }
 
-    async function synthesizeVoiceXAI(text, apiKey = XAI_TTS_API_KEY) {
+    async function synthesizeVoiceXAI(text, apiKey = getConfiguredXaiTtsApiKey()) {
       const body = {
         text,
         voice_id: XAI_TTS_VOICE_ID,
@@ -1463,11 +1479,11 @@
       const input = el.keywords.value.trim();
       if (!input) return alert("请先输入关键词。");
 
-      if (XAI_API_KEY.includes("YOUR_XAI_API_KEY")) {
+      if (!getConfiguredXaiApiKey()) {
         setStatus("请先填写 xAI API Key。", "err");
         return;
       }
-      if (ttsProviderEl.value === "xai" && XAI_TTS_API_KEY.includes("YOUR_XAI_TTS_API_KEY")) {
+      if (ttsProviderEl.value === "xai" && !getConfiguredXaiTtsApiKey()) {
         setStatus("请先填写 xAI TTS API Key。", "err");
         return;
       }
@@ -1560,7 +1576,7 @@
       const input = el.directTtsText.value.trim();
       if (!input) return alert("请先输入要转语音的对话内容。");
 
-      if (ttsProviderEl.value === "xai" && XAI_TTS_API_KEY.includes("YOUR_XAI_TTS_API_KEY")) {
+      if (ttsProviderEl.value === "xai" && !getConfiguredXaiTtsApiKey()) {
         setStatus("请先填写 xAI TTS API Key。", "err");
         return;
       }
