@@ -790,6 +790,7 @@
         .replace(/^Bearer\s+/i, "")
         .replace(/["'`]/g, "")
         .replace(/\s+/g, "")
+        .replace(/[^\x21-\x7E]/g, "")
         .trim();
     }
 

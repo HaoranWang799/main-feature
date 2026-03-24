@@ -193,10 +193,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         token = re.sub(r"\s+", "", token)
         token = re.sub(r"^Bearer", "", token, flags=re.IGNORECASE).strip()
         token = token.strip("\"'`")
+        token = "".join(ch for ch in token if 33 <= ord(ch) <= 126)
         if not token:
             raise ValueError(f"Missing {field_name}")
-        if any(ord(ch) > 127 for ch in token):
-            raise ValueError(f"{field_name} contains non-ASCII characters; please paste the raw API key only.")
         return token
 
     def _perform_fish_tts(self, request_data, include_reference_id=True):
