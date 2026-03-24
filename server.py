@@ -180,12 +180,23 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     def _send_json(self, status, payload):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self._cors_headers()
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        self._send_bytes(status, "application/json; charset=utf-8", body)
+
+    def _send_bytes(self, status, content_type, body, extra_headers=None):
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", content_type)
+            self._cors_headers()
+            self.send_header("Content-Length", str(len(body)))
+            if extra_headers:
+                for key, value in extra_headers.items():
+                    self.send_header(key, value)
+            self.end_headers()
+            self.wfile.write(body)
+            return True
+        except (BrokenPipeError, ConnectionResetError):
+            print("Client disconnected before response could be fully written.")
+            return False
 
     def _sanitize_api_token(self, raw_token, field_name):
         token = unicodedata.normalize("NFKC", raw_token or "")
@@ -271,14 +282,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     result = fallback
 
             if result["ok"]:
-                self.send_response(200)
-                self.send_header("Content-Type", result["content_type"])
-                self._cors_headers()
-                self.send_header("Content-Length", str(len(result["body"])))
+                extra_headers = {}
                 if result["used_default_voice"]:
-                    self.send_header("X-Fish-Fallback", "default-voice")
-                self.end_headers()
-                self.wfile.write(result["body"])
+                    extra_headers["X-Fish-Fallback"] = "default-voice"
+                self._send_bytes(200, result["content_type"], result["body"], extra_headers)
                 return
 
             preview = result["body"].decode("utf-8", errors="ignore")[:300]
@@ -291,14 +298,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 })
                 return
 
-            self.send_response(result["status"])
-            self.send_header("Content-Type", result["content_type"])
-            self._cors_headers()
-            self.send_header("Content-Length", str(len(result["body"])))
-            self.end_headers()
-            self.wfile.write(result["body"])
+            self._send_bytes(result["status"], result["content_type"], result["body"])
         except ValueError as e:
             self._send_json(400, {"ok": False, "error": str(e)})
+        except (BrokenPipeError, ConnectionResetError):
+            print("Client disconnected during Fish relay.")
         except Exception as e:
             self._send_json(502, {"ok": False, "error": str(e)})
 
