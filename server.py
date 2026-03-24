@@ -8,6 +8,7 @@ import http.server
 import json
 import os
 import re
+import unicodedata
 import urllib.request
 import urllib.error
 
@@ -187,9 +188,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def _sanitize_api_token(self, raw_token, field_name):
-        token = (raw_token or "").replace("\u200b", "").replace("\u200c", "").replace("\u200d", "").replace("\ufeff", "")
+        token = unicodedata.normalize("NFKC", raw_token or "")
+        token = token.replace("\u200b", "").replace("\u200c", "").replace("\u200d", "").replace("\ufeff", "")
         token = re.sub(r"\s+", "", token)
         token = re.sub(r"^Bearer", "", token, flags=re.IGNORECASE).strip()
+        token = token.strip("\"'`")
         if not token:
             raise ValueError(f"Missing {field_name}")
         if any(ord(ch) > 127 for ch in token):

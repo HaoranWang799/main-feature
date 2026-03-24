@@ -681,7 +681,7 @@
     const svStyleEl = document.getElementById("svStyle");
 
     // 加载上次保存的 TTS 配置
-    fishApiKeyEl.value = localStorage.getItem("FISH_API_KEY") || "";
+    fishApiKeyEl.value = sanitizeApiToken(localStorage.getItem("FISH_API_KEY") || "");
     fishModelEl.value = localStorage.getItem("FISH_MODEL") || "s1";
     if (!["s1", "s2-pro"].includes(fishModelEl.value.trim())) {
       fishModelEl.value = "s1";
@@ -694,7 +694,7 @@
     fishEmotionIntensityValueEl.textContent = fishEmotionIntensityEl.value;
     fishBreathinessValueEl.textContent = fishBreathinessEl.value;
     fishTemperatureValueEl.textContent = (Number(fishTemperatureEl.value) / 100).toFixed(1);
-    svApiKeyEl.value = localStorage.getItem("SV_API_KEY") || "";
+    svApiKeyEl.value = sanitizeApiToken(localStorage.getItem("SV_API_KEY") || "");
     svVoiceEl.value = localStorage.getItem("SV_VOICE") || "Zephyr";
     svStyleEl.value = localStorage.getItem("SV_STYLE") || "warm";
     ttsProviderEl.value = localStorage.getItem("TTS_PROVIDER") || "xai";
@@ -717,7 +717,7 @@
     ttsProviderEl.addEventListener("change", toggleTtsOptions);
     toggleTtsOptions();
 
-    fishApiKeyEl.addEventListener("change", () => localStorage.setItem("FISH_API_KEY", fishApiKeyEl.value.trim()));
+    localStorage.setItem("FISH_API_KEY", fishApiKeyEl.value);
     fishModelEl.addEventListener("change", () => {
       localStorage.setItem("FISH_MODEL", fishModelEl.value.trim() || "s1");
       toggleTtsOptions();
@@ -735,7 +735,7 @@
       fishTemperatureValueEl.textContent = (Number(fishTemperatureEl.value) / 100).toFixed(1);
       localStorage.setItem("FISH_TEMPERATURE", fishTemperatureEl.value);
     });
-    svApiKeyEl.addEventListener("change", () => localStorage.setItem("SV_API_KEY", svApiKeyEl.value.trim()));
+    localStorage.setItem("SV_API_KEY", svApiKeyEl.value);
     svVoiceEl.addEventListener("change", () => localStorage.setItem("SV_VOICE", svVoiceEl.value));
     svStyleEl.addEventListener("change", () => localStorage.setItem("SV_STYLE", svStyleEl.value.trim()));
 
@@ -783,6 +783,28 @@
       el.apiTestResult.className = "api-result" + (type ? ` ${type}` : "");
     }
 
+    function sanitizeApiToken(raw) {
+      return (raw || "")
+        .normalize("NFKC")
+        .replace(/[\u200B-\u200D\uFEFF]/g, "")
+        .replace(/^Bearer\s+/i, "")
+        .replace(/["'`]/g, "")
+        .replace(/\s+/g, "")
+        .trim();
+    }
+
+    function bindSanitizedTokenInput(inputEl, storageKey, mirrorEl) {
+      const persist = () => {
+        const cleaned = sanitizeApiToken(inputEl.value);
+        inputEl.value = cleaned;
+        localStorage.setItem(storageKey, cleaned);
+        if (mirrorEl) mirrorEl.value = cleaned;
+      };
+      inputEl.addEventListener("change", persist);
+      inputEl.addEventListener("blur", persist);
+      return persist;
+    }
+
     const STORAGE_KEY = "ROMANCE_LLM_SYSTEM_PROMPT";
     el.systemPrompt.value = localStorage.getItem(STORAGE_KEY) || "";
     el.promptStatus.textContent = el.systemPrompt.value.trim() ? "已加载已保存的提示词。" : "提示词尚未保存。";
@@ -792,14 +814,16 @@
     const TEST_SV_API_KEY = "TEST_SV_API_KEY";
     const safeEnvXai = XAI_API_KEY.includes("YOUR_XAI_API_KEY") ? "" : XAI_API_KEY;
     const safeEnvXaiTts = XAI_TTS_API_KEY.includes("YOUR_XAI_TTS_API_KEY") ? "" : XAI_TTS_API_KEY;
-    el.testXaiApiKey.value = localStorage.getItem(TEST_XAI_API_KEY) || safeEnvXai;
-    el.testXaiTtsApiKey.value = localStorage.getItem(TEST_XAI_TTS_API_KEY) || safeEnvXaiTts;
-    el.testFishApiKey.value = localStorage.getItem(TEST_FISH_API_KEY) || fishApiKeyEl.value || "";
-    el.testSvApiKey.value = localStorage.getItem(TEST_SV_API_KEY) || svApiKeyEl.value || "";
-    el.testXaiApiKey.addEventListener("change", () => localStorage.setItem(TEST_XAI_API_KEY, el.testXaiApiKey.value.trim()));
-    el.testXaiTtsApiKey.addEventListener("change", () => localStorage.setItem(TEST_XAI_TTS_API_KEY, el.testXaiTtsApiKey.value.trim()));
-    el.testFishApiKey.addEventListener("change", () => localStorage.setItem(TEST_FISH_API_KEY, el.testFishApiKey.value.trim()));
-    el.testSvApiKey.addEventListener("change", () => localStorage.setItem(TEST_SV_API_KEY, el.testSvApiKey.value.trim()));
+    el.testXaiApiKey.value = sanitizeApiToken(localStorage.getItem(TEST_XAI_API_KEY) || safeEnvXai);
+    el.testXaiTtsApiKey.value = sanitizeApiToken(localStorage.getItem(TEST_XAI_TTS_API_KEY) || safeEnvXaiTts);
+    el.testFishApiKey.value = sanitizeApiToken(localStorage.getItem(TEST_FISH_API_KEY) || fishApiKeyEl.value || "");
+    el.testSvApiKey.value = sanitizeApiToken(localStorage.getItem(TEST_SV_API_KEY) || svApiKeyEl.value || "");
+    bindSanitizedTokenInput(el.testXaiApiKey, TEST_XAI_API_KEY);
+    bindSanitizedTokenInput(el.testXaiTtsApiKey, TEST_XAI_TTS_API_KEY);
+    bindSanitizedTokenInput(el.testFishApiKey, TEST_FISH_API_KEY, fishApiKeyEl);
+    bindSanitizedTokenInput(el.testSvApiKey, TEST_SV_API_KEY, svApiKeyEl);
+    bindSanitizedTokenInput(fishApiKeyEl, "FISH_API_KEY", el.testFishApiKey);
+    bindSanitizedTokenInput(svApiKeyEl, "SV_API_KEY", el.testSvApiKey);
 
     function parseApiError(data, fallback = "未知 API 错误") {
       if (!data) return fallback;
@@ -1076,7 +1100,8 @@
     }
 
     async function testXaiLlm() {
-      const apiKey = el.testXaiApiKey.value.trim();
+      const apiKey = sanitizeApiToken(el.testXaiApiKey.value);
+      el.testXaiApiKey.value = apiKey;
       if (!apiKey) {
         throw new Error("未配置 XAI_API_KEY。");
       }
@@ -1102,7 +1127,8 @@
     }
 
     async function testXaiTts() {
-      const apiKey = el.testXaiTtsApiKey.value.trim();
+      const apiKey = sanitizeApiToken(el.testXaiTtsApiKey.value);
+      el.testXaiTtsApiKey.value = apiKey;
       if (!apiKey) {
         throw new Error("未配置 XAI_TTS_API_KEY。");
       }
@@ -1111,8 +1137,12 @@
     }
 
     async function testFishTts() {
-      const apiKey = el.testFishApiKey.value.trim();
+      const apiKey = sanitizeApiToken(el.testFishApiKey.value);
+      el.testFishApiKey.value = apiKey;
       if (!apiKey) throw new Error("未配置 Fish API Key。");
+      fishApiKeyEl.value = apiKey;
+      localStorage.setItem("FISH_API_KEY", apiKey);
+      localStorage.setItem(TEST_FISH_API_KEY, apiKey);
       const body = {
         apiKey,
         model: fishModelEl.value.trim() || "s1",
@@ -1134,8 +1164,10 @@
     }
 
     async function testSexyVoiceTts() {
-      svApiKeyEl.value = el.testSvApiKey.value.trim();
+      svApiKeyEl.value = sanitizeApiToken(el.testSvApiKey.value);
+      el.testSvApiKey.value = svApiKeyEl.value;
       localStorage.setItem("SV_API_KEY", svApiKeyEl.value);
+      localStorage.setItem(TEST_SV_API_KEY, svApiKeyEl.value);
       const audio = await synthesizeVoiceSexyVoice("API test voice check.");
       return `SexyVoice 调用成功，返回音频字节数：${audio.byteLength}`;
     }
@@ -1190,7 +1222,11 @@
     }
 
     async function synthesizeVoiceFish(text) {
-      const apiKey = fishApiKeyEl.value.trim();
+      const apiKey = sanitizeApiToken(fishApiKeyEl.value);
+      fishApiKeyEl.value = apiKey;
+      el.testFishApiKey.value = apiKey;
+      localStorage.setItem("FISH_API_KEY", apiKey);
+      localStorage.setItem(TEST_FISH_API_KEY, apiKey);
       if (!apiKey) throw new Error("请先填写 Fish Audio API Key。");
 
       const fishModel = fishModelEl.value.trim() || "s1";
@@ -1228,7 +1264,11 @@
     }
 
     async function synthesizeVoiceSexyVoice(text) {
-      const apiKey = svApiKeyEl.value.trim();
+      const apiKey = sanitizeApiToken(svApiKeyEl.value);
+      svApiKeyEl.value = apiKey;
+      el.testSvApiKey.value = apiKey;
+      localStorage.setItem("SV_API_KEY", apiKey);
+      localStorage.setItem(TEST_SV_API_KEY, apiKey);
       if (!apiKey) throw new Error("请先填写 SexyVoice API Key。");
 
       // SexyVoice Gemini 语音每次最多 1000 字符，需要分块
