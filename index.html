@@ -656,6 +656,7 @@
     // Fish Audio 配置（走本地代理绕 CORS）
     const FISH_TTS_API_URL = "/proxy/fish/tts";
     const FISH_TTS_LOCAL_PROXY_URL = "http://localhost:8080/proxy/fish/tts";
+    const FISH_TTS_DIRECT_API_URL = "https://api.fish.audio/v1/tts";
 
     // SexyVoice.ai 配置（走本地代理绕 CORS）
     const SV_API_URL = "/proxy/sexyvoice/speech";
@@ -1210,6 +1211,18 @@
           body: JSON.stringify(buildFishBody(includeReferenceId))
         });
       };
+      const requestFishDirect = async (includeReferenceId = true) => {
+        return fetch(FISH_TTS_DIRECT_API_URL, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Accept": "audio/mpeg",
+            "Content-Type": "application/json",
+            "model": fishModel
+          },
+          body: JSON.stringify(buildFishBody(includeReferenceId))
+        });
+      };
 
       let res = null;
       const viaSameOriginProxy = window.location.origin && !window.location.origin.startsWith("file:");
@@ -1233,9 +1246,20 @@
       }
 
       if (!res) {
+        // Railway 场景下，如果同源代理未被当前服务接住，尝试直连官方 API 兜底。
+        if (!IS_LOCAL_DEV) {
+          try {
+            res = await requestFishDirect(true);
+          } catch {
+            // keep the final error branch below
+          }
+        }
+      }
+
+      if (!res) {
         const tip = IS_LOCAL_DEV
           ? "本地代理不可用。请通过 http://localhost:8080 打开页面，并确认 server.py 正在运行。"
-          : "同源代理不可用。请检查 Railway 服务日志，确认 /proxy/fish/tts 已由当前服务处理。";
+          : "同源代理不可用，且直连 Fish API 失败。请检查 Railway 服务日志，并确认网络策略允许访问 api.fish.audio。";
         throw new Error(`Fish Audio 请求失败：${tip}`);
       }
 
@@ -1257,6 +1281,18 @@
               }
             } catch {
               // ignore and keep trying fallback URLs
+            }
+          }
+          if (!fallbackRes && !IS_LOCAL_DEV) {
+            try {
+              fallbackRes = await requestFishDirect(false);
+              if (fallbackRes.ok) {
+                fishReferenceIdEl.value = "";
+                localStorage.removeItem("FISH_REFERENCE_ID");
+                return fallbackRes.arrayBuffer();
+              }
+            } catch {
+              // ignore and keep final error message
             }
           }
         }
