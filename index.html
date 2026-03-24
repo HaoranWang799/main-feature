@@ -379,8 +379,8 @@
       padding: 12px;
       border: 1px dashed #efd7df;
       border-radius: 14px;
-      background: #fff;
-      color: var(--muted);
+      background: #fffdf2;
+      color: #8a6d1d;
       font-size: 0.92rem;
       line-height: 1.55;
       white-space: pre-wrap;
@@ -388,7 +388,8 @@
       min-height: 72px;
     }
     .api-result.ok { color: var(--ok); border-color: #b8e5cc; background: #f3fff8; }
-    .api-result.err { color: var(--err); border-color: #f2c4c4; background: #fff5f5; }
+    .api-result.warn { color: #9a6a00; border-color: #f0d58a; background: #fff9e6; }
+    .api-result.err { color: #9a6a00; border-color: #f0d58a; background: #fff9e6; }
     .small { margin-top: 10px; font-size: 0.82rem; color: var(--muted); line-height: 1.5; }
     @media (max-width: 480px) {
       body {
@@ -1046,13 +1047,13 @@
     }
 
     async function runApiTest(name, fn) {
-      setApiTestResult(`正在测试 ${name}...`);
+      setApiTestResult(`正在测试 ${name}...`, "warn");
       try {
         const result = await fn();
         setApiTestResult(`${name} 成功。\n${result}`, "ok");
       } catch (err) {
         const msg = err?.message || "未知错误";
-        setApiTestResult(`${name} 失败。\n${msg}`, "err");
+        setApiTestResult(`${name} 未通过。\n${msg}`, "warn");
       }
     }
 
