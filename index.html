@@ -25,11 +25,18 @@
       background: linear-gradient(135deg, var(--bg1), var(--bg2));
       min-height: 100vh;
       display: grid;
-      place-items: start center;
+      place-items: center;
       padding: 18px 12px 32px;
     }
+    .book {
+      width: min(1440px, 100%);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
+      gap: 16px;
+      align-items: start;
+    }
     .app {
-      width: min(100%, 390px);
+      width: 100%;
       background: var(--card);
       backdrop-filter: blur(8px);
       border: 1px solid #ffffff80;
@@ -354,6 +361,10 @@
     .panel button {
       margin-top: 0;
     }
+    .prompt-shell {
+      display: grid;
+      gap: 16px;
+    }
     .api-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -383,6 +394,9 @@
       body {
         padding: 10px 8px 24px;
       }
+      .book {
+        grid-template-columns: 1fr;
+      }
       .app {
         width: 100%;
         border-radius: 18px;
@@ -407,8 +421,8 @@
   </style>
 </head>
 <body>
+  <div class="book">
   <main class="app">
-    <p class="top-link"><a href="./prompt.html">打开人工提示词配置页</a></p>
     <h1>AI 浪漫语音生成器</h1>
     <p class="hint">输入关键词后，自动生成连续情感台词并合成为一条完整语音。</p>
 
@@ -538,6 +552,28 @@
     <p class="small">说明：请用 <code>python server.py</code> 启动本地服务器（包含 API 代理）。</p>
   </main>
 
+  <main class="app">
+    <div class="prompt-shell">
+      <div>
+        <p class="top-link"><a href="./prompt.html">单独打开人工提示词配置页</a></p>
+        <h1>人工提示词配置页</h1>
+        <p class="hint">只支持你手动输入和保存。主页面会读取这里的内容作为 system prompt。</p>
+      </div>
+
+      <div class="panel">
+        <h2>系统提示词</h2>
+        <p>这里保存的内容会被主页面直接读取，用来控制生成风格和约束。</p>
+        <textarea id="systemPrompt" placeholder="在这里手动输入你的 system prompt..."></textarea>
+        <div class="api-grid" style="grid-template-columns: 1fr 1fr;">
+          <button id="savePromptBtn" type="button">保存并生效</button>
+          <button id="clearPromptBtn" type="button" class="ghost">清空</button>
+        </div>
+        <div id="promptStatus" class="api-result">提示词尚未保存。</div>
+      </div>
+    </div>
+  </main>
+  </div>
+
   <script src="/config.js"></script>
   <script>
     const APP_CONFIG = window.APP_CONFIG || {};
@@ -651,6 +687,10 @@
       testFishBtn: document.getElementById("testFishBtn"),
       testSexyVoiceBtn: document.getElementById("testSexyVoiceBtn"),
       apiTestResult: document.getElementById("apiTestResult"),
+      systemPrompt: document.getElementById("systemPrompt"),
+      savePromptBtn: document.getElementById("savePromptBtn"),
+      clearPromptBtn: document.getElementById("clearPromptBtn"),
+      promptStatus: document.getElementById("promptStatus"),
       status: document.getElementById("status"),
       player: document.getElementById("player"),
       playBtn: document.getElementById("playBtn"),
@@ -675,6 +715,10 @@
       el.apiTestResult.textContent = message;
       el.apiTestResult.className = "api-result" + (type ? ` ${type}` : "");
     }
+
+    const STORAGE_KEY = "ROMANCE_LLM_SYSTEM_PROMPT";
+    el.systemPrompt.value = localStorage.getItem(STORAGE_KEY) || "";
+    el.promptStatus.textContent = el.systemPrompt.value.trim() ? "已加载已保存的提示词。" : "提示词尚未保存。";
 
     function parseApiError(data, fallback = "未知 API 错误") {
       if (!data) return fallback;
@@ -843,6 +887,25 @@
     function getManualPrompt() {
       return localStorage.getItem("ROMANCE_LLM_SYSTEM_PROMPT") || "";
     }
+
+    el.savePromptBtn.addEventListener("click", () => {
+      const v = el.systemPrompt.value.trim();
+      if (!v) {
+        el.promptStatus.textContent = "提示词为空，请先输入后再保存。";
+        el.promptStatus.className = "api-result err";
+        return;
+      }
+      localStorage.setItem(STORAGE_KEY, v);
+      el.promptStatus.textContent = "已保存，回到左侧生成器即可生效。";
+      el.promptStatus.className = "api-result ok";
+    });
+
+    el.clearPromptBtn.addEventListener("click", () => {
+      el.systemPrompt.value = "";
+      localStorage.removeItem(STORAGE_KEY);
+      el.promptStatus.textContent = "已清空。";
+      el.promptStatus.className = "api-result";
+    });
 
     async function generateScript(input, targetSeconds = 0, _retried = false) {
       const manualPrompt = getManualPrompt();
