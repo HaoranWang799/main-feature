@@ -651,6 +651,7 @@
     const LLM_API_URL = "https://api.x.ai/v1/chat/completions";
     const LLM_MODEL = "grok-4-1-fast-non-reasoning";
     const XAI_TTS_VOICE_ID = "eve"; // 可选: eve / ara / rex / sal / leo
+    const IS_LOCAL_DEV = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname || "");
 
     // Fish Audio 配置（走本地代理绕 CORS）
     const FISH_TTS_API_URL = "/proxy/fish/tts";
@@ -1214,7 +1215,7 @@
       const viaSameOriginProxy = window.location.origin && !window.location.origin.startsWith("file:");
       const candidateUrls = [];
       if (viaSameOriginProxy) candidateUrls.push(FISH_TTS_API_URL);
-      candidateUrls.push(FISH_TTS_LOCAL_PROXY_URL);
+      if (IS_LOCAL_DEV) candidateUrls.push(FISH_TTS_LOCAL_PROXY_URL);
 
       for (const url of candidateUrls) {
         try {
@@ -1232,9 +1233,10 @@
       }
 
       if (!res) {
-        throw new Error(
-          "Fish Audio 请求失败：本地代理不可用。请通过 http://localhost:8080 打开页面，并确认 server.py 正在运行。"
-        );
+        const tip = IS_LOCAL_DEV
+          ? "本地代理不可用。请通过 http://localhost:8080 打开页面，并确认 server.py 正在运行。"
+          : "同源代理不可用。请检查 Railway 服务日志，确认 /proxy/fish/tts 已由当前服务处理。";
+        throw new Error(`Fish Audio 请求失败：${tip}`);
       }
 
       if (!res.ok) {
@@ -1242,8 +1244,8 @@
         let data = null;
         try { data = textErr ? JSON.parse(textErr) : null; } catch { data = textErr; }
         const parsedError = parseApiError(data, `HTTP ${res.status}`);
-        if (fishReferenceId && /Reference not found/i.test(parsedError)) {
-          // If a custom voice ID is invalid, retry with Fish's default voice so generation can still proceed.
+        if (fishReferenceId && res.status >= 400) {
+          // If custom voice reference is invalid or incompatible, retry once with Fish default voice.
           let fallbackRes = null;
           for (const url of candidateUrls) {
             try {
@@ -1259,7 +1261,7 @@
           }
         }
         const extra = !viaSameOriginProxy
-          ? "（当前页面不是从 localhost 服务打开，建议改用 http://localhost:8080 ）"
+          ? "（当前页面不是从服务端地址打开，请改用部署域名或 http://localhost:8080 ）"
           : "";
         throw new Error(`Fish Audio TTS 接口错误: ${parsedError}（model=${fishModel}）` + extra);
       }
