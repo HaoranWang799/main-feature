@@ -47,6 +47,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             super().do_GET()
 
     def do_POST(self):
+        if self.path == "/api/fish/tts":
+            self._relay_fish_tts()
+            return
+        if self.path == "/api/test/fish":
+            self._test_fish_tts()
+            return
         route, remote = self._match_proxy()
         if route:
             self._proxy(remote, method="POST")
@@ -161,6 +167,134 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header("Content-Length", str(len(msg)))
             self.end_headers()
             self.wfile.write(msg)
+
+    def _read_json(self):
+        length = int(self.headers.get("Content-Length", 0))
+        raw = self.rfile.read(length) if length else b"{}"
+        try:
+            return json.loads(raw.decode("utf-8"))
+        except Exception:
+            return {}
+
+    def _send_json(self, status, payload):
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self._cors_headers()
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _perform_fish_tts(self, request_data, include_reference_id=True):
+        api_key = (request_data.get("apiKey") or request_data.get("api_key") or "").strip()
+        if not api_key:
+            raise ValueError("Missing Fish API key")
+
+        model = (request_data.get("model") or "s1").strip() or "s1"
+        text = (request_data.get("text") or "API test voice check.").strip() or "API test voice check."
+        reference_id = (request_data.get("referenceId") or request_data.get("reference_id") or "").strip()
+        payload = {
+            "text": text,
+            "format": request_data.get("format") or "mp3",
+            "normalize": request_data.get("normalize", True),
+            "latency": request_data.get("latency") or "balanced",
+            "temperature": float(request_data.get("temperature", 1.0)),
+        }
+        if include_reference_id and reference_id:
+            payload["reference_id"] = reference_id
+
+        headers = {
+            "User-Agent": "SexyVoiceApp/1.0",
+            "Authorization": f"Bearer {api_key}",
+            "Accept": "audio/mpeg",
+            "Content-Type": "application/json",
+            "model": model,
+        }
+        req = urllib.request.Request(
+            "https://api.fish.audio/v1/tts",
+            data=json.dumps(payload).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                return {
+                    "ok": True,
+                    "status": resp.status,
+                    "content_type": resp.headers.get("Content-Type", "audio/mpeg"),
+                    "body": resp.read(),
+                    "used_default_voice": not include_reference_id and bool(reference_id),
+                }
+        except urllib.error.HTTPError as e:
+            return {
+                "ok": False,
+                "status": e.code,
+                "content_type": e.headers.get("Content-Type", "application/json"),
+                "body": e.read(),
+                "used_default_voice": not include_reference_id and bool(reference_id),
+            }
+
+    def _relay_fish_tts(self):
+        try:
+            request_data = self._read_json()
+            result = self._perform_fish_tts(request_data, include_reference_id=True)
+            if (not result["ok"]) and (request_data.get("referenceId") or request_data.get("reference_id")):
+                fallback = self._perform_fish_tts(request_data, include_reference_id=False)
+                if fallback["ok"]:
+                    result = fallback
+
+            if result["ok"]:
+                self.send_response(200)
+                self.send_header("Content-Type", result["content_type"])
+                self._cors_headers()
+                self.send_header("Content-Length", str(len(result["body"])))
+                if result["used_default_voice"]:
+                    self.send_header("X-Fish-Fallback", "default-voice")
+                self.end_headers()
+                self.wfile.write(result["body"])
+                return
+
+            self.send_response(result["status"])
+            self.send_header("Content-Type", result["content_type"])
+            self._cors_headers()
+            self.send_header("Content-Length", str(len(result["body"])))
+            self.end_headers()
+            self.wfile.write(result["body"])
+        except ValueError as e:
+            self._send_json(400, {"ok": False, "error": str(e)})
+        except Exception as e:
+            self._send_json(502, {"ok": False, "error": str(e)})
+
+    def _test_fish_tts(self):
+        try:
+            request_data = self._read_json()
+            result = self._perform_fish_tts(request_data, include_reference_id=True)
+            if (not result["ok"]) and (request_data.get("referenceId") or request_data.get("reference_id")):
+                fallback = self._perform_fish_tts(request_data, include_reference_id=False)
+                if fallback["ok"]:
+                    result = fallback
+
+            if result["ok"]:
+                self._send_json(200, {
+                    "ok": True,
+                    "status": result["status"],
+                    "bytes": len(result["body"]),
+                    "used_default_voice": result["used_default_voice"],
+                })
+                return
+
+            preview = result["body"].decode("utf-8", errors="ignore")[:300]
+            self._send_json(result["status"], {
+                "ok": False,
+                "status": result["status"],
+                "error": preview or "Fish Audio request failed",
+                "used_default_voice": result["used_default_voice"],
+            })
+        except ValueError as e:
+            self._send_json(400, {"ok": False, "error": str(e)})
+        except Exception as e:
+            self._send_json(502, {"ok": False, "error": str(e)})
 
     def log_message(self, fmt, *args):
         # 简化日志

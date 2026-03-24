@@ -651,12 +651,6 @@
     const LLM_API_URL = "https://api.x.ai/v1/chat/completions";
     const LLM_MODEL = "grok-4-1-fast-non-reasoning";
     const XAI_TTS_VOICE_ID = "eve"; // 可选: eve / ara / rex / sal / leo
-    const IS_LOCAL_DEV = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname || "");
-
-    // Fish Audio 配置（走本地代理绕 CORS）
-    const FISH_TTS_API_URL = "/proxy/fish/tts";
-    const FISH_TTS_LOCAL_PROXY_URL = "http://localhost:8080/proxy/fish/tts";
-    const FISH_TTS_DIRECT_API_URL = "https://api.fish.audio/v1/tts";
 
     // SexyVoice.ai 配置（走本地代理绕 CORS）
     const SV_API_URL = "/proxy/sexyvoice/speech";
@@ -1117,10 +1111,26 @@
     }
 
     async function testFishTts() {
-      fishApiKeyEl.value = el.testFishApiKey.value.trim();
-      localStorage.setItem("FISH_API_KEY", fishApiKeyEl.value);
-      const audio = await synthesizeVoiceFish("API test voice check.");
-      return `Fish Audio 调用成功，返回音频字节数：${audio.byteLength}`;
+      const apiKey = el.testFishApiKey.value.trim();
+      if (!apiKey) throw new Error("未配置 Fish API Key。");
+      const body = {
+        apiKey,
+        model: fishModelEl.value.trim() || "s1",
+        referenceId: fishReferenceIdEl.value.trim(),
+        temperature: Number(fishTemperatureEl.value || 100) / 100,
+        text: "API test voice check."
+      };
+      const res = await fetch("/api/test/fish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        throw new Error(parseApiError(data, `HTTP ${res.status}`));
+      }
+      const fallback = data.used_default_voice ? "，已自动切换为默认音色" : "";
+      return `Fish Audio 调用成功，返回音频字节数：${data.bytes}${fallback}`;
     }
 
     async function testSexyVoiceTts() {
@@ -1187,121 +1197,33 @@
       const fishReferenceId = fishReferenceIdEl.value.trim();
       const controlledText = fishModel === "s2-pro" ? applyFishS2ProControls(text) : text;
       const fishTemperature = Number(fishTemperatureEl.value || 100) / 100;
-      const buildFishBody = (includeReferenceId = true) => {
-        const payload = {
+      const res = await fetch("/api/fish/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          apiKey,
+          model: fishModel,
+          referenceId: fishReferenceId,
           text: controlledText,
           format: "mp3",
           normalize: true,
           latency: "balanced",
           temperature: fishTemperature
-        };
-        if (includeReferenceId && fishReferenceId) payload.reference_id = fishReferenceId;
-        return payload;
-      };
-
-      const requestFish = async (url, includeReferenceId = true) => {
-        return fetch(url, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Accept": "audio/mpeg",
-            "Content-Type": "application/json",
-            "model": fishModel
-          },
-          body: JSON.stringify(buildFishBody(includeReferenceId))
-        });
-      };
-      const requestFishDirect = async (includeReferenceId = true) => {
-        return fetch(FISH_TTS_DIRECT_API_URL, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Accept": "audio/mpeg",
-            "Content-Type": "application/json",
-            "model": fishModel
-          },
-          body: JSON.stringify(buildFishBody(includeReferenceId))
-        });
-      };
-
-      let res = null;
-      const viaSameOriginProxy = window.location.origin && !window.location.origin.startsWith("file:");
-      const candidateUrls = [];
-      if (viaSameOriginProxy) candidateUrls.push(FISH_TTS_API_URL);
-      if (IS_LOCAL_DEV) candidateUrls.push(FISH_TTS_LOCAL_PROXY_URL);
-
-      for (const url of candidateUrls) {
-        try {
-          res = await requestFish(url);
-          // 同源代理偶发返回 HTML 404（未走到新 server.py），继续尝试下一个候选地址
-          if (res.status === 404) {
-            const maybeHtml = await res.text().catch(() => "");
-            const isHtml404 = /^\s*<!DOCTYPE html>|^\s*<!DOCTYPE HTML>/i.test(maybeHtml);
-            if (isHtml404) continue;
-          }
-          break;
-        } catch (err) {
-          // ignore and continue trying next candidate URL
-        }
-      }
-
-      if (!res) {
-        // Railway 场景下，如果同源代理未被当前服务接住，尝试直连官方 API 兜底。
-        if (!IS_LOCAL_DEV) {
-          try {
-            res = await requestFishDirect(true);
-          } catch {
-            // keep the final error branch below
-          }
-        }
-      }
-
-      if (!res) {
-        const tip = IS_LOCAL_DEV
-          ? "本地代理不可用。请通过 http://localhost:8080 打开页面，并确认 server.py 正在运行。"
-          : "同源代理不可用，且直连 Fish API 失败。请检查 Railway 服务日志，并确认网络策略允许访问 api.fish.audio。";
-        throw new Error(`Fish Audio 请求失败：${tip}`);
-      }
+        })
+      });
 
       if (!res.ok) {
         const textErr = await res.text().catch(() => "");
         let data = null;
         try { data = textErr ? JSON.parse(textErr) : null; } catch { data = textErr; }
-        const parsedError = parseApiError(data, `HTTP ${res.status}`);
-        if (fishReferenceId && res.status >= 400) {
-          // If custom voice reference is invalid or incompatible, retry once with Fish default voice.
-          let fallbackRes = null;
-          for (const url of candidateUrls) {
-            try {
-              fallbackRes = await requestFish(url, false);
-              if (fallbackRes.ok) {
-                fishReferenceIdEl.value = "";
-                localStorage.removeItem("FISH_REFERENCE_ID");
-                return fallbackRes.arrayBuffer();
-              }
-            } catch {
-              // ignore and keep trying fallback URLs
-            }
-          }
-          if (!fallbackRes && !IS_LOCAL_DEV) {
-            try {
-              fallbackRes = await requestFishDirect(false);
-              if (fallbackRes.ok) {
-                fishReferenceIdEl.value = "";
-                localStorage.removeItem("FISH_REFERENCE_ID");
-                return fallbackRes.arrayBuffer();
-              }
-            } catch {
-              // ignore and keep final error message
-            }
-          }
-        }
-        const extra = !viaSameOriginProxy
-          ? "（当前页面不是从服务端地址打开，请改用部署域名或 http://localhost:8080 ）"
-          : "";
-        throw new Error(`Fish Audio TTS 接口错误: ${parsedError}（model=${fishModel}）` + extra);
+        throw new Error(`Fish Audio TTS 接口错误: ${parseApiError(data, `HTTP ${res.status}`)}（model=${fishModel}）`);
       }
 
+      const fallbackMode = res.headers.get("X-Fish-Fallback");
+      if (fallbackMode === "default-voice") {
+        fishReferenceIdEl.value = "";
+        localStorage.removeItem("FISH_REFERENCE_ID");
+      }
       return res.arrayBuffer();
     }
 
