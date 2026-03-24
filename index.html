@@ -384,6 +384,42 @@
       background: #efc93b;
       color: #5d4700;
     }
+    .api-provider-list {
+      display: grid;
+      gap: 10px;
+    }
+    .api-provider-row {
+      display: grid;
+      grid-template-columns: 132px 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
+    .api-provider-name {
+      font-size: 0.92rem;
+      color: var(--text);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .api-provider-input {
+      width: 100%;
+      border: 2px solid #f4c8d3;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 0.92rem;
+      outline: none;
+      background: #fff;
+    }
+    .api-provider-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px #e94e7728;
+    }
+    .api-provider-row .api-test-button {
+      width: 110px;
+      margin-top: 0;
+      padding: 10px 12px;
+      font-size: 0.92rem;
+      font-weight: 700;
+    }
     .api-result {
       margin-top: 10px;
       padding: 12px;
@@ -427,6 +463,12 @@
       }
       .subtitle-current {
         font-size: 0.98rem;
+      }
+      .api-provider-row {
+        grid-template-columns: 1fr;
+      }
+      .api-provider-row .api-test-button {
+        width: 100%;
       }
     }
   </style>
@@ -572,12 +614,27 @@
       <div class="panel">
         <h2>API 测试入口</h2>
         <p>用于快速确认 Railway 上各个接口是否正常可用，便于定位是前端、后端还是密钥的问题。</p>
-        <textarea id="apiTestText" placeholder="测试文本，例如：Hello, this is a connectivity test."></textarea>
-        <div class="api-grid">
-          <button id="testLlmBtn" class="api-test-button" type="button">测试 xAI LLM</button>
-          <button id="testXaiTtsBtn" class="api-test-button" type="button">测试 xAI TTS</button>
-          <button id="testFishBtn" class="api-test-button" type="button">测试 Fish Audio</button>
-          <button id="testSexyVoiceBtn" class="api-test-button" type="button">测试 SexyVoice</button>
+        <div class="api-provider-list">
+          <div class="api-provider-row">
+            <span class="api-provider-name">xAI LLM</span>
+            <input id="testXaiApiKey" class="api-provider-input" type="password" placeholder="输入 xAI API Key" />
+            <button id="testLlmBtn" class="api-test-button" type="button">测试</button>
+          </div>
+          <div class="api-provider-row">
+            <span class="api-provider-name">xAI TTS</span>
+            <input id="testXaiTtsApiKey" class="api-provider-input" type="password" placeholder="输入 xAI TTS API Key" />
+            <button id="testXaiTtsBtn" class="api-test-button" type="button">测试</button>
+          </div>
+          <div class="api-provider-row">
+            <span class="api-provider-name">Fish Audio</span>
+            <input id="testFishApiKey" class="api-provider-input" type="password" placeholder="输入 Fish API Key" />
+            <button id="testFishBtn" class="api-test-button" type="button">测试</button>
+          </div>
+          <div class="api-provider-row">
+            <span class="api-provider-name">SexyVoice</span>
+            <input id="testSvApiKey" class="api-provider-input" type="password" placeholder="输入 SexyVoice API Key" />
+            <button id="testSexyVoiceBtn" class="api-test-button" type="button">测试</button>
+          </div>
         </div>
         <div id="apiTestResult" class="api-result">点击任意按钮开始测试。</div>
       </div>
@@ -689,7 +746,6 @@
     const el = {
       keywords: document.getElementById("keywords"),
       directTtsText: document.getElementById("directTtsText"),
-      apiTestText: document.getElementById("apiTestText"),
       targetDuration: document.getElementById("targetDuration"),
       btn: document.getElementById("generateBtn"),
       directTtsBtn: document.getElementById("directTtsBtn"),
@@ -697,6 +753,10 @@
       testXaiTtsBtn: document.getElementById("testXaiTtsBtn"),
       testFishBtn: document.getElementById("testFishBtn"),
       testSexyVoiceBtn: document.getElementById("testSexyVoiceBtn"),
+      testXaiApiKey: document.getElementById("testXaiApiKey"),
+      testXaiTtsApiKey: document.getElementById("testXaiTtsApiKey"),
+      testFishApiKey: document.getElementById("testFishApiKey"),
+      testSvApiKey: document.getElementById("testSvApiKey"),
       apiTestResult: document.getElementById("apiTestResult"),
       systemPrompt: document.getElementById("systemPrompt"),
       savePromptBtn: document.getElementById("savePromptBtn"),
@@ -730,6 +790,20 @@
     const STORAGE_KEY = "ROMANCE_LLM_SYSTEM_PROMPT";
     el.systemPrompt.value = localStorage.getItem(STORAGE_KEY) || "";
     el.promptStatus.textContent = el.systemPrompt.value.trim() ? "已加载已保存的提示词。" : "提示词尚未保存。";
+    const TEST_XAI_API_KEY = "TEST_XAI_API_KEY";
+    const TEST_XAI_TTS_API_KEY = "TEST_XAI_TTS_API_KEY";
+    const TEST_FISH_API_KEY = "TEST_FISH_API_KEY";
+    const TEST_SV_API_KEY = "TEST_SV_API_KEY";
+    const safeEnvXai = XAI_API_KEY.includes("YOUR_XAI_API_KEY") ? "" : XAI_API_KEY;
+    const safeEnvXaiTts = XAI_TTS_API_KEY.includes("YOUR_XAI_TTS_API_KEY") ? "" : XAI_TTS_API_KEY;
+    el.testXaiApiKey.value = localStorage.getItem(TEST_XAI_API_KEY) || safeEnvXai;
+    el.testXaiTtsApiKey.value = localStorage.getItem(TEST_XAI_TTS_API_KEY) || safeEnvXaiTts;
+    el.testFishApiKey.value = localStorage.getItem(TEST_FISH_API_KEY) || fishApiKeyEl.value || "";
+    el.testSvApiKey.value = localStorage.getItem(TEST_SV_API_KEY) || svApiKeyEl.value || "";
+    el.testXaiApiKey.addEventListener("change", () => localStorage.setItem(TEST_XAI_API_KEY, el.testXaiApiKey.value.trim()));
+    el.testXaiTtsApiKey.addEventListener("change", () => localStorage.setItem(TEST_XAI_TTS_API_KEY, el.testXaiTtsApiKey.value.trim()));
+    el.testFishApiKey.addEventListener("change", () => localStorage.setItem(TEST_FISH_API_KEY, el.testFishApiKey.value.trim()));
+    el.testSvApiKey.addEventListener("change", () => localStorage.setItem(TEST_SV_API_KEY, el.testSvApiKey.value.trim()));
 
     function parseApiError(data, fallback = "未知 API 错误") {
       if (!data) return fallback;
@@ -1006,22 +1080,21 @@
     }
 
     async function testXaiLlm() {
-      const prompt = el.apiTestText.value.trim();
-      if (!prompt) throw new Error("请先输入测试文本。");
-      if (XAI_API_KEY.includes("YOUR_XAI_API_KEY")) {
+      const apiKey = el.testXaiApiKey.value.trim();
+      if (!apiKey) {
         throw new Error("未配置 XAI_API_KEY。");
       }
       const body = {
         model: LLM_MODEL,
         messages: [
-          { role: "system", content: "你是一个 API 连通性测试助手。请用一句简短中文回复，说明你收到了测试文本，并保持回复简洁。" },
-          { role: "user", content: prompt }
+          { role: "system", content: "你是一个 API 连通性测试助手。请用一句简短中文回复：连接正常。" },
+          { role: "user", content: "请回复：连接正常。" }
         ]
       };
       const res = await fetch(LLM_API_URL, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${XAI_API_KEY}`,
+          "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json"
         },
         body: JSON.stringify(body)
@@ -1033,26 +1106,25 @@
     }
 
     async function testXaiTts() {
-      const text = el.apiTestText.value.trim();
-      if (!text) throw new Error("请先输入测试文本。");
-      if (XAI_TTS_API_KEY.includes("YOUR_XAI_TTS_API_KEY")) {
+      const apiKey = el.testXaiTtsApiKey.value.trim();
+      if (!apiKey) {
         throw new Error("未配置 XAI_TTS_API_KEY。");
       }
-      const audio = await synthesizeVoiceXAI(text);
+      const audio = await synthesizeVoiceXAI("API test voice check.", apiKey);
       return `xAI TTS 调用成功，返回音频字节数：${audio.byteLength}`;
     }
 
     async function testFishTts() {
-      const text = el.apiTestText.value.trim();
-      if (!text) throw new Error("请先输入测试文本。");
-      const audio = await synthesizeVoiceFish(text);
+      fishApiKeyEl.value = el.testFishApiKey.value.trim();
+      localStorage.setItem("FISH_API_KEY", fishApiKeyEl.value);
+      const audio = await synthesizeVoiceFish("API test voice check.");
       return `Fish Audio 调用成功，返回音频字节数：${audio.byteLength}`;
     }
 
     async function testSexyVoiceTts() {
-      const text = el.apiTestText.value.trim();
-      if (!text) throw new Error("请先输入测试文本。");
-      const audio = await synthesizeVoiceSexyVoice(text);
+      svApiKeyEl.value = el.testSvApiKey.value.trim();
+      localStorage.setItem("SV_API_KEY", svApiKeyEl.value);
+      const audio = await synthesizeVoiceSexyVoice("API test voice check.");
       return `SexyVoice 调用成功，返回音频字节数：${audio.byteLength}`;
     }
 
@@ -1078,7 +1150,7 @@
       return synthesizeVoiceXAI(text);
     }
 
-    async function synthesizeVoiceXAI(text) {
+    async function synthesizeVoiceXAI(text, apiKey = XAI_TTS_API_KEY) {
       const body = {
         text,
         voice_id: XAI_TTS_VOICE_ID,
@@ -1088,7 +1160,7 @@
       const res = await fetch("https://api.x.ai/v1/tts", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${XAI_TTS_API_KEY}`,
+          "Authorization": `Bearer ${apiKey}`,
           "Accept": "audio/mpeg",
           "Content-Type": "application/json"
         },
