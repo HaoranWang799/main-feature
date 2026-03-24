@@ -7,6 +7,7 @@
 import http.server
 import json
 import os
+import re
 import urllib.request
 import urllib.error
 
@@ -185,10 +186,21 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _sanitize_api_token(self, raw_token, field_name):
+        token = (raw_token or "").replace("\u200b", "").replace("\u200c", "").replace("\u200d", "").replace("\ufeff", "")
+        token = re.sub(r"\s+", "", token)
+        token = re.sub(r"^Bearer", "", token, flags=re.IGNORECASE).strip()
+        if not token:
+            raise ValueError(f"Missing {field_name}")
+        if any(ord(ch) > 127 for ch in token):
+            raise ValueError(f"{field_name} contains non-ASCII characters; please paste the raw API key only.")
+        return token
+
     def _perform_fish_tts(self, request_data, include_reference_id=True):
-        api_key = (request_data.get("apiKey") or request_data.get("api_key") or "").strip()
-        if not api_key:
-            raise ValueError("Missing Fish API key")
+        api_key = self._sanitize_api_token(
+            request_data.get("apiKey") or request_data.get("api_key") or "",
+            "Fish API key",
+        )
 
         model = (request_data.get("model") or "s1").strip() or "s1"
         text = (request_data.get("text") or "API test voice check.").strip() or "API test voice check."
@@ -203,21 +215,22 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         if include_reference_id and reference_id:
             payload["reference_id"] = reference_id
 
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         headers = {
             "User-Agent": "SexyVoiceApp/1.0",
             "Authorization": f"Bearer {api_key}",
             "Accept": "audio/mpeg",
-            "Content-Type": "application/json",
+            "Content-Type": "application/json; charset=utf-8",
             "model": model,
         }
-        req = urllib.request.Request(
-            "https://api.fish.audio/v1/tts",
-            data=json.dumps(payload).encode("utf-8"),
-            headers=headers,
-            method="POST",
-        )
 
         try:
+            req = urllib.request.Request(
+                "https://api.fish.audio/v1/tts",
+                data=body,
+                headers=headers,
+                method="POST",
+            )
             with urllib.request.urlopen(req, timeout=120) as resp:
                 return {
                     "ok": True,
@@ -234,6 +247,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 "body": e.read(),
                 "used_default_voice": not include_reference_id and bool(reference_id),
             }
+        except UnicodeEncodeError as e:
+            raise ValueError(f"Fish API key format is invalid: {e}") from e
 
     def _relay_fish_tts(self):
         try:
