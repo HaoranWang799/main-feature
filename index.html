@@ -496,7 +496,6 @@
       <select id="ttsProvider">
         <option value="xai" selected>xAI TTS</option>
         <option value="fish">Fish Audio</option>
-        <option value="sexyvoice">SexyVoice.ai</option>
       </select>
     </div>
     <div class="row" id="fishModelRow" style="display:none">
@@ -530,33 +529,6 @@
         <input id="fishTemperature" type="range" min="0" max="100" step="1" value="100" />
         <span id="fishTemperatureValue" class="slider-value">1.0</span>
       </div>
-    </div>
-    <div class="row" id="svVoiceRow" style="display:none">
-      <label for="svVoice">SexyVoice 声音</label>
-      <select id="svVoice">
-        <option value="zephyr" data-model="gpro">Zephyr (多语言)</option>
-        <option value="kore" data-model="gpro">Kore (多语言)</option>
-        <option value="sulafat" data-model="gpro">Sulafat (多语言)</option>
-        <option value="puck" data-model="gpro">Puck (多语言)</option>
-        <option value="gacrux" data-model="gpro">Gacrux (多语言)</option>
-        <option value="achernar" data-model="gpro">Achernar (多语言)</option>
-        <option value="aoede" data-model="gpro">Aoede (多语言)</option>
-        <option value="despina" data-model="gpro">Despina (多语言)</option>
-        <option value="erinome" data-model="gpro">Erinome (多语言)</option>
-        <option value="emma" data-model="orpheus">Emma (EN-US)</option>
-        <option value="tara" data-model="orpheus">Tara (EN-US)</option>
-        <option value="josh" data-model="orpheus">Josh (EN-US)</option>
-        <option value="dan" data-model="orpheus">Dan (EN-UK)</option>
-        <option value="pietro" data-model="orpheus">Pietro (IT)</option>
-      </select>
-    </div>
-    <div class="row" id="svStyleRow" style="display:none">
-      <label for="svStyle">SexyVoice 风格</label>
-      <input id="svStyle" type="text" placeholder="如：warm, breathy, seductive" value="warm" style="flex:1;padding:8px 10px;border:2px solid #f4c8d3;border-radius:10px;font-size:0.92rem;outline:none;" />
-    </div>
-    <div class="row" id="svKeyRow" style="display:none">
-      <label for="svApiKey">SexyVoice API Key</label>
-      <input id="svApiKey" type="password" placeholder="sk_live_..." style="flex:1;padding:8px 10px;border:2px solid #f4c8d3;border-radius:10px;font-size:0.92rem;outline:none;" />
     </div>
 
     <button id="generateBtn">生成并播放浪漫语音</button>
@@ -629,11 +601,6 @@
             <input id="testFishApiKey" class="api-provider-input" type="password" placeholder="输入 Fish API Key" />
             <button id="testFishBtn" class="api-test-button" type="button">测试</button>
           </div>
-          <div class="api-provider-row">
-            <span class="api-provider-name">SexyVoice</span>
-            <input id="testSvApiKey" class="api-provider-input" type="password" placeholder="输入 SexyVoice API Key" />
-            <button id="testSexyVoiceBtn" class="api-test-button" type="button">测试</button>
-          </div>
         </div>
         <div id="apiTestResult" class="api-result">点击任意按钮开始测试。</div>
       </div>
@@ -651,10 +618,6 @@
     const LLM_MODEL = "grok-4-1-fast-non-reasoning";
     const XAI_TTS_VOICE_ID = "eve"; // 可选: eve / ara / rex / sal / leo
 
-    // SexyVoice.ai 配置（走本地代理绕 CORS）
-    const SV_API_URL = "/proxy/sexyvoice/speech";
-    const SV_MODEL = "gpro";
-
     // TTS 提供商切换
     const ttsProviderEl = document.getElementById("ttsProvider");
     const fishModelRow = document.getElementById("fishModelRow");
@@ -662,10 +625,6 @@
     const fishEmotionRow = document.getElementById("fishEmotionRow");
     const fishBreathRow = document.getElementById("fishBreathRow");
     const fishTemperatureRow = document.getElementById("fishTemperatureRow");
-    const fishKeyRow = null;
-    const svVoiceRow = document.getElementById("svVoiceRow");
-    const svStyleRow = document.getElementById("svStyleRow");
-    const svKeyRow = document.getElementById("svKeyRow");
     const fishModelEl = document.getElementById("fishModel");
     const fishReferenceIdEl = document.getElementById("fishReferenceId");
     const fishEmotionIntensityEl = document.getElementById("fishEmotionIntensity");
@@ -674,9 +633,6 @@
     const fishBreathinessValueEl = document.getElementById("fishBreathinessValue");
     const fishTemperatureEl = document.getElementById("fishTemperature");
     const fishTemperatureValueEl = document.getElementById("fishTemperatureValue");
-    const svApiKeyEl = document.getElementById("svApiKey");
-    const svVoiceEl = document.getElementById("svVoice");
-    const svStyleEl = document.getElementById("svStyle");
 
     // 加载上次保存的 TTS 配置
     fishModelEl.value = localStorage.getItem("FISH_MODEL") || "s1";
@@ -691,24 +647,16 @@
     fishEmotionIntensityValueEl.textContent = fishEmotionIntensityEl.value;
     fishBreathinessValueEl.textContent = fishBreathinessEl.value;
     fishTemperatureValueEl.textContent = (Number(fishTemperatureEl.value) / 100).toFixed(1);
-    svApiKeyEl.value = sanitizeApiToken(localStorage.getItem("SV_API_KEY") || "");
-    svVoiceEl.value = localStorage.getItem("SV_VOICE") || "Zephyr";
-    svStyleEl.value = localStorage.getItem("SV_STYLE") || "warm";
     ttsProviderEl.value = localStorage.getItem("TTS_PROVIDER") || "xai";
 
     function toggleTtsOptions() {
       const isFish = ttsProviderEl.value === "fish";
-      const isSV = ttsProviderEl.value === "sexyvoice";
       fishModelRow.style.display = isFish ? "flex" : "none";
       fishVoiceRow.style.display = isFish ? "flex" : "none";
       const isFishS2Pro = isFish && fishModelEl.value === "s2-pro";
       fishEmotionRow.style.display = isFishS2Pro ? "flex" : "none";
       fishBreathRow.style.display = isFishS2Pro ? "flex" : "none";
       fishTemperatureRow.style.display = isFish ? "flex" : "none";
-      if (fishKeyRow) fishKeyRow.style.display = isFish ? "flex" : "none";
-      svVoiceRow.style.display = isSV ? "flex" : "none";
-      svStyleRow.style.display = isSV ? "flex" : "none";
-      svKeyRow.style.display = isSV ? "flex" : "none";
       localStorage.setItem("TTS_PROVIDER", ttsProviderEl.value);
     }
     ttsProviderEl.addEventListener("change", toggleTtsOptions);
@@ -731,9 +679,6 @@
       fishTemperatureValueEl.textContent = (Number(fishTemperatureEl.value) / 100).toFixed(1);
       localStorage.setItem("FISH_TEMPERATURE", fishTemperatureEl.value);
     });
-    localStorage.setItem("SV_API_KEY", svApiKeyEl.value);
-    svVoiceEl.addEventListener("change", () => localStorage.setItem("SV_VOICE", svVoiceEl.value));
-    svStyleEl.addEventListener("change", () => localStorage.setItem("SV_STYLE", svStyleEl.value.trim()));
 
     const el = {
       keywords: document.getElementById("keywords"),
@@ -744,11 +689,9 @@
       testLlmBtn: document.getElementById("testLlmBtn"),
       testXaiTtsBtn: document.getElementById("testXaiTtsBtn"),
       testFishBtn: document.getElementById("testFishBtn"),
-      testSexyVoiceBtn: document.getElementById("testSexyVoiceBtn"),
       testXaiApiKey: document.getElementById("testXaiApiKey"),
       testXaiTtsApiKey: document.getElementById("testXaiTtsApiKey"),
       testFishApiKey: document.getElementById("testFishApiKey"),
-      testSvApiKey: document.getElementById("testSvApiKey"),
       apiTestResult: document.getElementById("apiTestResult"),
       systemPrompt: document.getElementById("systemPrompt"),
       savePromptBtn: document.getElementById("savePromptBtn"),
@@ -817,18 +760,14 @@
     const TEST_XAI_API_KEY = "TEST_XAI_API_KEY";
     const TEST_XAI_TTS_API_KEY = "TEST_XAI_TTS_API_KEY";
     const TEST_FISH_API_KEY = "TEST_FISH_API_KEY";
-    const TEST_SV_API_KEY = "TEST_SV_API_KEY";
     const safeEnvXai = XAI_API_KEY.includes("YOUR_XAI_API_KEY") ? "" : XAI_API_KEY;
     const safeEnvXaiTts = XAI_TTS_API_KEY.includes("YOUR_XAI_TTS_API_KEY") ? "" : XAI_TTS_API_KEY;
     el.testXaiApiKey.value = sanitizeApiToken(localStorage.getItem(TEST_XAI_API_KEY) || safeEnvXai);
     el.testXaiTtsApiKey.value = sanitizeApiToken(localStorage.getItem(TEST_XAI_TTS_API_KEY) || safeEnvXaiTts);
     el.testFishApiKey.value = sanitizeApiToken(localStorage.getItem(TEST_FISH_API_KEY) || localStorage.getItem("FISH_API_KEY") || "");
-    el.testSvApiKey.value = sanitizeApiToken(localStorage.getItem(TEST_SV_API_KEY) || svApiKeyEl.value || "");
     bindSanitizedTokenInput(el.testXaiApiKey, TEST_XAI_API_KEY);
     bindSanitizedTokenInput(el.testXaiTtsApiKey, TEST_XAI_TTS_API_KEY);
     bindSanitizedTokenInput(el.testFishApiKey, TEST_FISH_API_KEY);
-    bindSanitizedTokenInput(el.testSvApiKey, TEST_SV_API_KEY, svApiKeyEl);
-    bindSanitizedTokenInput(svApiKeyEl, "SV_API_KEY", el.testSvApiKey);
 
     function getConfiguredFishApiKey() {
       return sanitizeApiToken(
@@ -1192,15 +1131,6 @@
       return `Fish Audio 调用成功，返回音频字节数：${data.bytes}${fallback}`;
     }
 
-    async function testSexyVoiceTts() {
-      svApiKeyEl.value = sanitizeApiToken(el.testSvApiKey.value);
-      el.testSvApiKey.value = svApiKeyEl.value;
-      localStorage.setItem("SV_API_KEY", svApiKeyEl.value);
-      localStorage.setItem(TEST_SV_API_KEY, svApiKeyEl.value);
-      const audio = await synthesizeVoiceSexyVoice("API test voice check.");
-      return `SexyVoice 调用成功，返回音频字节数：${audio.byteLength}`;
-    }
-
     async function runApiTest(name, fn) {
       setApiTestResult(`正在测试 ${name}...`, "warn");
       try {
@@ -1216,9 +1146,6 @@
       const provider = ttsProviderEl.value;
       if (provider === "fish") {
         return synthesizeVoiceFish(text);
-      }
-      if (provider === "sexyvoice") {
-        return synthesizeVoiceSexyVoice(text);
       }
       return synthesizeVoiceXAI(text);
     }
@@ -1300,109 +1227,6 @@
         localStorage.removeItem("FISH_REFERENCE_ID");
       }
       return base64ToArrayBuffer(data.audio_base64);
-    }
-
-    async function synthesizeVoiceSexyVoice(text) {
-      const apiKey = sanitizeApiToken(svApiKeyEl.value);
-      svApiKeyEl.value = apiKey;
-      el.testSvApiKey.value = apiKey;
-      localStorage.setItem("SV_API_KEY", apiKey);
-      localStorage.setItem(TEST_SV_API_KEY, apiKey);
-      if (!apiKey) throw new Error("请先填写 SexyVoice API Key。");
-
-      // SexyVoice Gemini 语音每次最多 1000 字符，需要分块
-      const MAX_CHUNK = 950;
-      const chunks = [];
-      let remaining = text;
-      while (remaining.length > 0) {
-        if (remaining.length <= MAX_CHUNK) {
-          chunks.push(remaining);
-          break;
-        }
-        // 在句子边界分割
-        let cutPoint = remaining.lastIndexOf(".", MAX_CHUNK);
-        if (cutPoint < MAX_CHUNK * 0.5) cutPoint = remaining.lastIndexOf(" ", MAX_CHUNK);
-        if (cutPoint < MAX_CHUNK * 0.3) cutPoint = MAX_CHUNK;
-        chunks.push(remaining.slice(0, cutPoint + 1).trim());
-        remaining = remaining.slice(cutPoint + 1).trim();
-      }
-
-      const audioBuffers = [];
-      for (let ci = 0; ci < chunks.length; ci++) {
-        const chunk = chunks[ci];
-        // 根据选中的声音自动选择对应的 model
-        const selectedOption = svVoiceEl.options[svVoiceEl.selectedIndex];
-        const voiceModel = selectedOption?.dataset?.model || "gpro";
-        const body = {
-          model: voiceModel,
-          voice: svVoiceEl.value,
-          input: chunk,
-          style: svStyleEl.value.trim() || "warm"
-        };
-
-        // 带重试的请求（最多 3 次）
-        let lastErr = null;
-        for (let attempt = 0; attempt < 3; attempt++) {
-          try {
-            if (attempt > 0) {
-              console.warn(`SexyVoice chunk ${ci+1} 第 ${attempt+1} 次重试...`);
-              await new Promise(r => setTimeout(r, 2000 * attempt)); // 等待 2s/4s
-            }
-            const res = await fetch(SV_API_URL, {
-              method: "POST",
-              headers: {
-                "Authorization": `Bearer ${apiKey}`,
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify(body)
-            });
-
-            if (!res.ok) {
-              const errData = await res.json().catch(() => null);
-              throw new Error("SexyVoice TTS 错误: " + parseApiError(errData, `HTTP ${res.status}`));
-            }
-
-            const data = await res.json();
-            const audioUrl = data?.url;
-            if (!audioUrl) throw new Error("SexyVoice 未返回音频 URL。");
-
-            // 通过本地代理下载音频文件（绕 CORS）
-            const audioRes = await fetch("/proxy/audio?url=" + encodeURIComponent(audioUrl));
-            if (!audioRes.ok) throw new Error("SexyVoice 音频下载失败: HTTP " + audioRes.status);
-            audioBuffers.push(await audioRes.arrayBuffer());
-            lastErr = null;
-            break; // 成功，跳出重试循环
-          } catch (e) {
-            lastErr = e;
-          }
-        }
-        if (lastErr) throw lastErr;
-      }
-
-      // 如果只有一个 chunk，直接返回
-      if (audioBuffers.length === 1) return audioBuffers[0];
-
-      // 多个 chunk 拼接成一个
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      const ctx = new AudioCtx();
-      const decoded = [];
-      for (const b of audioBuffers) decoded.push(await ctx.decodeAudioData(b.slice(0)));
-      const sampleRate = decoded[0].sampleRate;
-      const channels = Math.max(...decoded.map(d => d.numberOfChannels));
-      const totalLength = decoded.reduce((s, d) => s + d.length, 0);
-      const offline = new OfflineAudioContext(channels, totalLength, sampleRate);
-      let offset = 0;
-      for (const d of decoded) {
-        const src = offline.createBufferSource();
-        src.buffer = d;
-        src.connect(offline.destination);
-        src.start(offset / sampleRate);
-        offset += d.length;
-      }
-      const rendered = await offline.startRendering();
-      await ctx.close();
-      const blob = audioBufferToWavBlob(rendered);
-      return await blob.arrayBuffer();
     }
 
     async function mergeAudioBuffers(buffers, targetSeconds = 0) {
@@ -1513,10 +1337,6 @@
         setStatus("请先填写 Fish Audio API Key。", "err");
         return;
       }
-      if (ttsProviderEl.value === "sexyvoice" && !svApiKeyEl.value.trim()) {
-        setStatus("请先填写 SexyVoice API Key。", "err");
-        return;
-      }
 
       el.btn.disabled = true;
       stopSubtitleSync();
@@ -1606,10 +1426,6 @@
         setStatus("请先填写 Fish Audio API Key。", "err");
         return;
       }
-      if (ttsProviderEl.value === "sexyvoice" && !svApiKeyEl.value.trim()) {
-        setStatus("请先填写 SexyVoice API Key。", "err");
-        return;
-      }
 
       el.directTtsBtn.disabled = true;
       stopSubtitleSync();
@@ -1696,7 +1512,6 @@
     el.testLlmBtn.addEventListener("click", () => runApiTest("xAI LLM", testXaiLlm));
     el.testXaiTtsBtn.addEventListener("click", () => runApiTest("xAI TTS", testXaiTts));
     el.testFishBtn.addEventListener("click", () => runApiTest("Fish Audio", testFishTts));
-    el.testSexyVoiceBtn.addEventListener("click", () => runApiTest("SexyVoice", testSexyVoiceTts));
   </script>
 </body>
 </html>
