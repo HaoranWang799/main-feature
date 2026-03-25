@@ -531,10 +531,6 @@
         <span id="fishTemperatureValue" class="slider-value">1.0</span>
       </div>
     </div>
-    <div class="row" id="fishKeyRow" style="display:none">
-      <label for="fishApiKey">Fish API Key</label>
-      <input id="fishApiKey" type="password" placeholder="填写 Fish Audio API Key" style="flex:1;padding:8px 10px;border:2px solid #f4c8d3;border-radius:10px;font-size:0.92rem;outline:none;" />
-    </div>
     <div class="row" id="svVoiceRow" style="display:none">
       <label for="svVoice">SexyVoice 声音</label>
       <select id="svVoice">
@@ -666,11 +662,10 @@
     const fishEmotionRow = document.getElementById("fishEmotionRow");
     const fishBreathRow = document.getElementById("fishBreathRow");
     const fishTemperatureRow = document.getElementById("fishTemperatureRow");
-    const fishKeyRow = document.getElementById("fishKeyRow");
+    const fishKeyRow = null;
     const svVoiceRow = document.getElementById("svVoiceRow");
     const svStyleRow = document.getElementById("svStyleRow");
     const svKeyRow = document.getElementById("svKeyRow");
-    const fishApiKeyEl = document.getElementById("fishApiKey");
     const fishModelEl = document.getElementById("fishModel");
     const fishReferenceIdEl = document.getElementById("fishReferenceId");
     const fishEmotionIntensityEl = document.getElementById("fishEmotionIntensity");
@@ -684,7 +679,6 @@
     const svStyleEl = document.getElementById("svStyle");
 
     // 加载上次保存的 TTS 配置
-    fishApiKeyEl.value = sanitizeApiToken(localStorage.getItem("FISH_API_KEY") || "");
     fishModelEl.value = localStorage.getItem("FISH_MODEL") || "s1";
     if (!["s1", "s2-pro"].includes(fishModelEl.value.trim())) {
       fishModelEl.value = "s1";
@@ -711,7 +705,7 @@
       fishEmotionRow.style.display = isFishS2Pro ? "flex" : "none";
       fishBreathRow.style.display = isFishS2Pro ? "flex" : "none";
       fishTemperatureRow.style.display = isFish ? "flex" : "none";
-      fishKeyRow.style.display = isFish ? "flex" : "none";
+      if (fishKeyRow) fishKeyRow.style.display = isFish ? "flex" : "none";
       svVoiceRow.style.display = isSV ? "flex" : "none";
       svStyleRow.style.display = isSV ? "flex" : "none";
       svKeyRow.style.display = isSV ? "flex" : "none";
@@ -720,7 +714,6 @@
     ttsProviderEl.addEventListener("change", toggleTtsOptions);
     toggleTtsOptions();
 
-    localStorage.setItem("FISH_API_KEY", fishApiKeyEl.value);
     fishModelEl.addEventListener("change", () => {
       localStorage.setItem("FISH_MODEL", fishModelEl.value.trim() || "s1");
       toggleTtsOptions();
@@ -829,14 +822,22 @@
     const safeEnvXaiTts = XAI_TTS_API_KEY.includes("YOUR_XAI_TTS_API_KEY") ? "" : XAI_TTS_API_KEY;
     el.testXaiApiKey.value = sanitizeApiToken(localStorage.getItem(TEST_XAI_API_KEY) || safeEnvXai);
     el.testXaiTtsApiKey.value = sanitizeApiToken(localStorage.getItem(TEST_XAI_TTS_API_KEY) || safeEnvXaiTts);
-    el.testFishApiKey.value = sanitizeApiToken(localStorage.getItem(TEST_FISH_API_KEY) || fishApiKeyEl.value || "");
+    el.testFishApiKey.value = sanitizeApiToken(localStorage.getItem(TEST_FISH_API_KEY) || localStorage.getItem("FISH_API_KEY") || "");
     el.testSvApiKey.value = sanitizeApiToken(localStorage.getItem(TEST_SV_API_KEY) || svApiKeyEl.value || "");
     bindSanitizedTokenInput(el.testXaiApiKey, TEST_XAI_API_KEY);
     bindSanitizedTokenInput(el.testXaiTtsApiKey, TEST_XAI_TTS_API_KEY);
-    bindSanitizedTokenInput(el.testFishApiKey, TEST_FISH_API_KEY, fishApiKeyEl);
+    bindSanitizedTokenInput(el.testFishApiKey, TEST_FISH_API_KEY);
     bindSanitizedTokenInput(el.testSvApiKey, TEST_SV_API_KEY, svApiKeyEl);
-    bindSanitizedTokenInput(fishApiKeyEl, "FISH_API_KEY", el.testFishApiKey);
     bindSanitizedTokenInput(svApiKeyEl, "SV_API_KEY", el.testSvApiKey);
+
+    function getConfiguredFishApiKey() {
+      return sanitizeApiToken(
+        el.testFishApiKey.value ||
+        localStorage.getItem(TEST_FISH_API_KEY) ||
+        localStorage.getItem("FISH_API_KEY") ||
+        ""
+      );
+    }
 
     function getConfiguredXaiApiKey() {
       const envKey = sanitizeApiToken(XAI_API_KEY);
@@ -1169,7 +1170,6 @@
       const apiKey = sanitizeApiToken(el.testFishApiKey.value);
       el.testFishApiKey.value = apiKey;
       if (!apiKey) throw new Error("未配置 Fish API Key。");
-      fishApiKeyEl.value = apiKey;
       localStorage.setItem("FISH_API_KEY", apiKey);
       localStorage.setItem(TEST_FISH_API_KEY, apiKey);
       const body = {
@@ -1251,8 +1251,7 @@
     }
 
     async function synthesizeVoiceFish(text) {
-      const apiKey = sanitizeApiToken(fishApiKeyEl.value);
-      fishApiKeyEl.value = apiKey;
+      const apiKey = getConfiguredFishApiKey();
       el.testFishApiKey.value = apiKey;
       localStorage.setItem("FISH_API_KEY", apiKey);
       localStorage.setItem(TEST_FISH_API_KEY, apiKey);
@@ -1510,7 +1509,7 @@
         setStatus("请先填写 xAI TTS API Key。", "err");
         return;
       }
-      if (ttsProviderEl.value === "fish" && !fishApiKeyEl.value.trim()) {
+      if (ttsProviderEl.value === "fish" && !getConfiguredFishApiKey()) {
         setStatus("请先填写 Fish Audio API Key。", "err");
         return;
       }
@@ -1603,7 +1602,7 @@
         setStatus("请先填写 xAI TTS API Key。", "err");
         return;
       }
-      if (ttsProviderEl.value === "fish" && !fishApiKeyEl.value.trim()) {
+      if (ttsProviderEl.value === "fish" && !getConfiguredFishApiKey()) {
         setStatus("请先填写 Fish Audio API Key。", "err");
         return;
       }
